@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "nats-courier"
+version = "0.1.0"
+description = "Forward NATS JetStream messages to HTTP services and reply"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [{ name = "Armando Freitas" }]
+keywords = ["nats", "jetstream", "http", "bridge", "microservices"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Networking",
+]
+dependencies = [
+    "nats-py>=2.9",
+    "httpx>=0.25",
+]
+
+[project.scripts]
+nats-courier = "nats_courier.cli:main"
+
+[project.urls]
+Repository = "https://github.com/armandojf25/nats-courier"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
