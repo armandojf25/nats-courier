@@ -51,18 +51,19 @@ def test_extract_reply_custom_header():
 @pytest.mark.asyncio
 async def test_handler_forwards_and_replies():
     """Full happy path: message arrives, gets forwarded, reply published."""
+    import httpx
+
     route = Route(subject="rpc.echo", url="http://echo:9000/do", timeout=5)
     cfg = CourierConfig(routes=[route])
     c = Courier(cfg)
 
     c._nc = MagicMock()
     c._nc.publish = AsyncMock()
-    c._http = MagicMock()
 
-    # simulate httpx returning a 200
-    import httpx
-    fake_resp = httpx.Response(200, json={"ok": True})
-    c._http.request = AsyncMock(return_value=fake_resp)
+    def ok_handler(req: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"ok": True})
+
+    c._http = httpx.AsyncClient(transport=httpx.MockTransport(ok_handler))
 
     handler = c._make_handler(route)
 
@@ -79,6 +80,7 @@ async def test_handler_forwards_and_replies():
     assert reply_subject == "_INBOX.test99"
     parsed = json.loads(reply_data)
     assert parsed["status"] == 200
+    await c._http.aclose()
 
 
 @pytest.mark.asyncio

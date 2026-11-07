@@ -7,20 +7,18 @@ import pytest
 from nats_courier.http import forward
 
 
-@pytest.fixture
-def respx_mock():
-    """Use httpx's built-in transport mock."""
-    import respx as rx
-    with rx.mock:
-        yield rx
+def _mock_handler(status=200, json_body=None):
+    """Return a transport handler that always responds with the given status/body."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json_body or {}
+        return httpx.Response(status, json=body)
+    return httpx.MockTransport(handler)
 
 
 @pytest.mark.asyncio
-async def test_forward_json(respx_mock):
-    respx_mock.post("http://ml:8000/predict").respond(
-        json={"prediction": [0.8, 0.2]},
-    )
-    client = httpx.AsyncClient(transport=respx_mock.mock)
+async def test_forward_json():
+    transport = _mock_handler(200, {"prediction": [0.8, 0.2]})
+    client = httpx.AsyncClient(transport=transport)
     payload = {"body": {"features": [1, 2, 3]}}
 
     raw = await forward(client, "http://ml:8000/predict", "POST", payload, 10)
@@ -32,11 +30,9 @@ async def test_forward_json(respx_mock):
 
 
 @pytest.mark.asyncio
-async def test_forward_multipart(respx_mock):
-    respx_mock.post("http://ml:8000/predict").respond(
-        json={"class": "hungry", "confidence": 0.91},
-    )
-    client = httpx.AsyncClient(transport=respx_mock.mock)
+async def test_forward_multipart():
+    transport = _mock_handler(200, {"class": "hungry", "confidence": 0.91})
+    client = httpx.AsyncClient(transport=transport)
     audio = b"\x00\x01\x02\x03" * 100
     payload = {
         "body_b64": base64.b64encode(audio).decode(),
@@ -55,7 +51,7 @@ async def test_forward_multipart(respx_mock):
 
 @pytest.mark.asyncio
 async def test_forward_timeout():
-    def boom(req):
+    def boom(req: httpx.Request) -> httpx.Response:
         raise httpx.TimeoutException("took too long")
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(boom))
@@ -69,13 +65,12 @@ async def test_forward_timeout():
 
 @pytest.mark.asyncio
 async def test_forward_connection_refused():
-    def refuse(req):
+    def refuse(req: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("connection refused")
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(refuse))
     raw = await forward(client, "http://down:8000/x", "POST", {"body": {"n": 1}}, 1)
     envelope = json.loads(raw)
 
-    # 502 for anything we can't reach
     assert envelope["status"] == 502
     await client.aclose()
